@@ -1,0 +1,11 @@
+{
+	"ModId": "reloaded.demos.helloworld",
+	"ModName": "Reloaded Template Mod",
+	"ModDescription": "Reloaded Template which prints \"Hello World\" to the console output on launch.",
+	"ModVersion": "1.0.0",
+	"ModAuthor": "Sewer56lol",
+	"ModSite": "https://github.com/sewer56lol/Reloaded-Mod-Loader",
+	"ModSource": "https://github.com/sewer56lol/Reloaded-Mod-Loader",
+	"ConfigurationFile": "",
+	"Dependencies": []
+}

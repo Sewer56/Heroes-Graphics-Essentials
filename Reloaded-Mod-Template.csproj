@@ -20,7 +20,7 @@
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
-    <OutputPath>..\build\Debug\Default-Mods\Reloaded-Mod-Template\</OutputPath>
+    <OutputPath>C:\Users\sewer\AppData\Roaming\Reloaded-Mod-Loader\Reloaded-Mods\Sonic-Heroes\Aspect-Tester\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
@@ -29,7 +29,7 @@
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
-    <OutputPath>..\build\Release\Default-Mods\Reloaded-Mod-Template\</OutputPath>
+    <OutputPath>C:\Users\sewer\AppData\Roaming\Reloaded-Mod-Loader\Reloaded-Mods\Sonic-Heroes\Aspect-Tester\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>2</WarningLevel>
@@ -90,33 +90,40 @@
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Windows.Forms" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Aspect.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="ReloadedTemplate\Client.cs" />
     <Compile Include="ReloadedTemplate\Initializer.cs" />
     <Compile Include="ReloadedTemplate\LocalAssemblyFinder.cs" />
+    <Compile Include="Resolution.cs" />
+    <Compile Include="RenderWare\RWCamera.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Config.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="libReloaded">
-      <Version>1.2.1-dev1</Version>
+      <Version>1.2.2-dev</Version>
     </PackageReference>
     <PackageReference Include="libReloaded-Paths">
-      <Version>1.2.1-dev1</Version>
+      <Version>1.2.2-dev</Version>
     </PackageReference>
     <PackageReference Include="LiteNetLib-custom">
       <Version>0.0.1</Version>
     </PackageReference>
+    <PackageReference Include="Newtonsoft.Json">
+      <Version>11.0.2</Version>
+    </PackageReference>
   </ItemGroup>
   <ItemGroup>
     <Content Include="Banner.png">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

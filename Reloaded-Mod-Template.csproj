@@ -20,7 +20,7 @@
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
-    <OutputPath>C:\Users\sewer\AppData\Roaming\Reloaded-Mod-Loader\Reloaded-Mods\Sonic-Heroes\Aspect-Tester\</OutputPath>
+    <OutputPath>C:\Users\sewer\AppData\Roaming\Reloaded-Mod-Loader\Reloaded-Mods\Sonic-Heroes\Graphics-Essentials\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
@@ -29,7 +29,7 @@
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
-    <OutputPath>C:\Users\sewer\AppData\Roaming\Reloaded-Mod-Loader\Reloaded-Mods\Sonic-Heroes\Aspect-Tester\</OutputPath>
+    <OutputPath>C:\Users\sewer\AppData\Roaming\Reloaded-Mod-Loader\Reloaded-Mods\Sonic-Heroes\Graphics-Essentials\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>2</WarningLevel>
@@ -37,7 +37,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x86'">
     <DebugSymbols>true</DebugSymbols>
-    <OutputPath>..\build\Debug\Reloaded-Mods\Sonic-Heroes\Template Mod\</OutputPath>
+    <OutputPath>C:\Users\sewer\AppData\Roaming\Reloaded-Mod-Loader\Reloaded-Mods\Sonic-Heroes\Graphics-Essentials\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <DebugType>full</DebugType>
     <ErrorReport>prompt</ErrorReport>
@@ -47,7 +47,7 @@
     <RegisterForComInterop>false</RegisterForComInterop>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x86'">
-    <OutputPath>..\build\Release\Reloaded-Mods\Sonic-Heroes\Template Mod\</OutputPath>
+    <OutputPath>C:\Users\sewer\AppData\Roaming\Reloaded-Mod-Loader\Reloaded-Mods\Sonic-Heroes\Graphics-Essentials\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <Optimize>true</Optimize>
     <DebugType>pdbonly</DebugType>
@@ -57,7 +57,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
     <DebugSymbols>true</DebugSymbols>
-    <OutputPath>..\build\Debug\Reloaded-Mods\Sonic-Heroes\Template Mod\</OutputPath>
+    <OutputPath>C:\Users\sewer\AppData\Roaming\Reloaded-Mod-Loader\Reloaded-Mods\Sonic-Heroes\Graphics-Essentials\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <DebugType>full</DebugType>
     <PlatformTarget>x64</PlatformTarget>
@@ -65,7 +65,7 @@
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
-    <OutputPath>..\build\Release\Reloaded-Mods\Sonic-Heroes\Template Mod\</OutputPath>
+    <OutputPath>C:\Users\sewer\AppData\Roaming\Reloaded-Mod-Loader\Reloaded-Mods\Sonic-Heroes\Graphics-Essentials\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <Optimize>true</Optimize>
     <DebugType>pdbonly</DebugType>
@@ -74,13 +74,13 @@
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Github-Release|AnyCPU'">
-    <OutputPath>bin\Github-Release\</OutputPath>
+    <OutputPath>C:\Users\sewer\AppData\Roaming\Reloaded-Mod-Loader\Reloaded-Mods\Sonic-Heroes\Graphics-Essentials\</OutputPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Github-Release|x86'">
-    <OutputPath>bin\x86\Github-Release\</OutputPath>
+    <OutputPath>C:\Users\sewer\AppData\Roaming\Reloaded-Mod-Loader\Reloaded-Mods\Sonic-Heroes\Graphics-Essentials\</OutputPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Github-Release|x64'">
-    <OutputPath>bin\x64\Github-Release\</OutputPath>
+    <OutputPath>C:\Users\sewer\AppData\Roaming\Reloaded-Mod-Loader\Reloaded-Mods\Sonic-Heroes\Graphics-Essentials\</OutputPath>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="DllExport, PublicKeyToken=8337224c9ad9e356">
@@ -99,7 +99,7 @@
     <Compile Include="ReloadedTemplate\Client.cs" />
     <Compile Include="ReloadedTemplate\Initializer.cs" />
     <Compile Include="ReloadedTemplate\LocalAssemblyFinder.cs" />
-    <Compile Include="Resolution.cs" />
+    <Compile Include="Graphics.cs" />
     <Compile Include="RenderWare\RWCamera.cs" />
   </ItemGroup>
   <ItemGroup>

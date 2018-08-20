@@ -60,7 +60,7 @@ namespace Reloaded_Mod_Template
          *
          *  Examples include:
          *  [Input] Reading controller information using Reloaded's input stack.
-         *  [IO] Accessing the individual Reloaded config files.
+         *  [IO] Accessing the individual Reloaded _graphicsSettings files.
          *  [Overlays] Easy to use D3D and external overlay code.
          *
          *  Simply search libReloaded on NuGet to find those extras and refer to
@@ -128,32 +128,35 @@ namespace Reloaded_Mod_Template
         /// <summary>
         /// Delegate which will be triggered upon the movement of the game window or shape/size changes.
         /// </summary>
-        public static WindowEventHooks.WinEventDelegate WindowEventDelegate { get; set; }
+        private static WindowEventHooks.WinEventDelegate WindowEventDelegate { get; set; }
 
         /*
             Hooks
         */
-        public static FunctionHook<Aspect.RwCameraSetViewWindow> RwCameraSetViewWindowHook;
-        public static FunctionHook<Aspect.CameraBuildPerspClipPlanes> CameraBuildPerspClipPlanesHook;
-        public static FunctionHook<Graphics.ConfigureGame> ConfigureGameHook;
+        private static FunctionHook<Aspect.RwCameraSetViewWindow> _rwCameraSetViewWindowHook;
+        private static FunctionHook<Aspect.CameraBuildPerspClipPlanes> _cameraBuildPerspClipPlanesHook;
+        private static FunctionHook<Graphics.ReadConfigfromINI> _readConfigFromIniHook;
 
         /*
             Constants
         */
-        public const float OriginalAspectRatio = 4F / 3F;
+        private const float OriginalAspectRatio         = 4F / 3F;
+        private const int   StockResolutionPresetCount  = 8;
 
         /*
             Game Graphics Values
         */
-        public static int* resolutionX = (int*) 0x00A7793C;
-        public static int* resolutionY = (int*) 0x00A77940;
-        public static int* windowStyleA = (int*) 0x00446D88;
-        public static int* windowStyleB = (int*) 0x00446DBE;
+        private static readonly int* _configFileFullscreen = (int*) 0x008CAEDC;
+        private static readonly int* _resolutionX = (int*) 0x00A7793C;
+        private static readonly int* _resolutionY = (int*) 0x00A77940;
+        private static readonly int* _windowStyleA = (int*) 0x00446D88;
+        private static readonly int* _windowStyleB = (int*) 0x00446DBE;
 
         /*
             Other 
         */
-        public static bool resizeHookSetup = false;
+        private static Graphics.GraphicsSettings _graphicsSettings;
+        private static bool  _resizeHookSetup = false;
 
         /// <summary>
         /// Your own user code starts here.
@@ -166,43 +169,147 @@ namespace Reloaded_Mod_Template
             Debugger.Launch();
             #endif
 
-            // Note to self:    Sorry for doing this, I'm a bit lazy to implement function call patching for hooks.
-            //                  NOP-ing failure check code anyway with no handler, so a difference is not made.
-            byte[] nepBytes = new byte[] {  0x90, 0x90, 0x90, 0x90, 0x90,
-                                            0x90, 0x90, 0x90, 0x90, 0x90,
-                                            0x90, 0x90, 0x90 };
-            GameProcess.WriteMemory((IntPtr)0x004469F3, nepBytes);
+            // Get graphics settings
+            _graphicsSettings = Graphics.GraphicsSettings.ParseConfig(ModDirectory);
+            Graphics.GraphicsSettings.WriteConfig(_graphicsSettings, ModDirectory);     // Will add comments if they are not present.
 
-            RwCameraSetViewWindowHook = FunctionHook<Aspect.RwCameraSetViewWindow>.Create(0x0064AC80, RwCameraSetViewWindowImpl).Activate();
-            CameraBuildPerspClipPlanesHook = FunctionHook<Aspect.CameraBuildPerspClipPlanes>.Create(0x0064AF80, CameraBuildPerspClipPlanesImpl).Activate();
-            ConfigureGameHook = FunctionHook<Graphics.ConfigureGame>.Create(0x4469F0, ConfigureGameHookImpl, 16).Activate();
+            PatchHardcodedResolutions();
+            PatchWindowStyle();
+
+            // Let's ignore the titlecard.
+            if (_graphicsSettings.StupidlyFastLoadTimes)
+                GameProcess.WriteMemory((IntPtr)0x0078A578, (double)9999999999F);
+
+            _rwCameraSetViewWindowHook = FunctionHook<Aspect.RwCameraSetViewWindow>.Create(0x0064AC80, RwCameraSetViewWindowImpl).Activate();
+            _cameraBuildPerspClipPlanesHook = FunctionHook<Aspect.CameraBuildPerspClipPlanes>.Create(0x0064AF80, CameraBuildPerspClipPlanesImpl).Activate();
+            _readConfigFromIniHook = FunctionHook<Graphics.ReadConfigfromINI>.Create(0x00629CE0, ReadConfigFromIniImpl).Activate();
         }
 
         /// <summary>
-        /// Runs the original initial game configuration function and then changes the resolution to the saved one.
+        /// Override our fullscreen on/off preference after the game calls the original config reader.
         /// </summary>
-        private static int ConfigureGameHookImpl()
+        /// <returns></returns>
+        private static int ReadConfigFromIniImpl(char* somePath)
         {
-            int result = ConfigureGameHook.OriginalFunction();
+            int result = _readConfigFromIniHook.OriginalFunction(somePath);
 
-            // Get user set resolution and override game set resolution.
-            Graphics.GraphicsSettings config = Graphics.GraphicsSettings.ParseConfig(ModDirectory);
-            *resolutionX = config.Width;
-            *resolutionY = config.Height;
+            // Override our fullscreen preference.
+            *_configFileFullscreen = Convert.ToInt32(_graphicsSettings.Fullscreen);
 
+            return result;
+        }
+
+        /// <summary>
+        /// Patches the game's hardcoded resolutions.
+        /// </summary>
+        private static void PatchHardcodedResolutions()
+        {
+            // Patch the game's resolutions (.
+            var resolutionArrayPointer = (Graphics.NativeGraphicsSetting*)0x7C9290;
+            for (int x = 0; x < StockResolutionPresetCount; x++)
+            {
+                resolutionArrayPointer[x].Width = _graphicsSettings.Width;
+                resolutionArrayPointer[x].Height = _graphicsSettings.Height;
+            }
+        }
+
+        /// <summary>
+        /// Patches the game's window style to be created.
+        /// </summary>
+        private static void PatchWindowStyle()
+        {
             // Modifies the window style used by the game.
             uint stockWindowStyle = 0x00C80000; // Sonic Heroes' default, set here in case someone runs a modified .exe;
 
-            if (config.Borderless)
+            if (_graphicsSettings.Borderless)
                 stockWindowStyle = Graphics.GraphicsSettings.SetBorderless(stockWindowStyle);
-            if (config.Resizable)
+
+            if (_graphicsSettings.Resizable)
                 stockWindowStyle = Graphics.GraphicsSettings.SetResizable(stockWindowStyle);
 
             // Set window border style.
-            GameProcess.WriteMemory((IntPtr)windowStyleA, stockWindowStyle); // Not using pointer as I'd need to change protections using VirtualProtect.
-            GameProcess.WriteMemory((IntPtr)windowStyleB, stockWindowStyle); // Not using pointer as I'd need to change protections using VirtualProtect.
+            GameProcess.WriteMemory((IntPtr)_windowStyleA, stockWindowStyle); // Not using pointer as I'd need to change protections using VirtualProtect.
+            GameProcess.WriteMemory((IntPtr)_windowStyleB, stockWindowStyle); // Not using pointer as I'd need to change protections using VirtualProtect.
+        }
 
-            return result;
+        /// <summary>
+        /// Calls the original function with modified view window coordinates for the RenderWare
+        /// Internal Clip Plane calculation function and then following restores the original view window.
+        /// </summary>
+        /// <param name="rwCamera">RenderWare's Camera Object</param>
+        /// <returns></returns>
+        [HandleProcessCorruptedStateExceptions]
+        private static int CameraBuildPerspClipPlanesImpl(RWCamera* rwCamera)
+        {
+            try
+            {
+                // The current aspect ratio.
+                float currentAspectRatio = GetCurrentAspectRatio();
+                float aspectRatioScale = currentAspectRatio / OriginalAspectRatio;
+
+                // Stretch X or Y depending on aspect ratio.
+                if (currentAspectRatio > _graphicsSettings.AspectRatioLimit)
+                    (*rwCamera).viewWindow.x = (*rwCamera).viewWindow.x * aspectRatioScale;
+                else
+                    (*rwCamera).viewWindow.y = (*rwCamera).viewWindow.y * (1F / aspectRatioScale);
+
+                // Call original
+                int result = _cameraBuildPerspClipPlanesHook.OriginalFunction(rwCamera);
+
+                // Unstretch X or Y depending on aspect ratio.
+                if (currentAspectRatio > _graphicsSettings.AspectRatioLimit)
+                    (*rwCamera).viewWindow.x = (*rwCamera).viewWindow.x / aspectRatioScale;
+                else
+                    (*rwCamera).viewWindow.y = (*rwCamera).viewWindow.y / (1F / aspectRatioScale);
+
+                return result;
+            }
+            catch
+            {
+                return _cameraBuildPerspClipPlanesHook.OriginalFunction(rwCamera);
+            }
+        }
+
+        /// <summary>
+        /// Calls the original function and then changes the recipient view window's X coordinate set.
+        /// </summary>
+        /// <param name="cameraPointer"></param>
+        /// <param name="view"></param>
+        /// <returns></returns>
+        [HandleProcessCorruptedStateExceptions]
+        private static void RwCameraSetViewWindowImpl(RWCamera* cameraPointer, Aspect.RWView* view)
+        {
+            if (!_resizeHookSetup)
+                SetupResizeHook();
+
+            try
+            {
+                _rwCameraSetViewWindowHook.OriginalFunction(cameraPointer, view);
+
+                // Get aspect.
+                float currentAspectRatio = GetCurrentAspectRatio();
+                float aspectRatioScale = currentAspectRatio / OriginalAspectRatio;
+
+                // Stretch X or Y depending on aspect ratio.
+                if (currentAspectRatio > _graphicsSettings.AspectRatioLimit)
+                    (*cameraPointer).recipViewWindow.x = (*cameraPointer).recipViewWindow.x / aspectRatioScale;
+                else
+                    (*cameraPointer).recipViewWindow.y = (*cameraPointer).recipViewWindow.y / (1F / aspectRatioScale);
+            }
+            catch
+            {
+                _rwCameraSetViewWindowHook.OriginalFunction(cameraPointer, view);
+            }
+        }
+
+        /// <summary>
+        /// Returns the current aspect ratio obtained by calculating the width and height of the window.
+        /// </summary>
+        /// <returns>The aspect ratio of the current window.</returns>
+        private static float GetCurrentAspectRatio()
+        {
+            var resolution = WindowProperties.GetClientAreaSize(GameProcess.Process.MainWindowHandle);
+            return (resolution.RightBorder / (float)resolution.BottomBorder);
         }
 
         /// <summary>
@@ -220,60 +327,8 @@ namespace Reloaded_Mod_Template
             if (eventType == 0x800B)
             {
                 var resolution = WindowProperties.GetClientAreaSize(GameProcess.Process.MainWindowHandle);
-                *resolutionX = resolution.RightBorder;
-                *resolutionY = resolution.BottomBorder;
-            }
-        }
-
-        /// <summary>
-        /// Calls the original function with modified view window coordinates for the RenderWare
-        /// Internal Clip Plane calculation function and then following restores the original view window.
-        /// </summary>
-        /// <param name="RwCamera">RenderWare's Camera Object</param>
-        /// <returns></returns>
-        [HandleProcessCorruptedStateExceptions]
-        private static int CameraBuildPerspClipPlanesImpl(RWCamera* RwCamera)
-        {
-            try
-            {
-                float CurrentAspectRatio = GetCurrentAspectRatio();
-                float AspectRatioScale = CurrentAspectRatio / OriginalAspectRatio;
-                (*RwCamera).viewWindow.x = (*RwCamera).viewWindow.x * AspectRatioScale;
-
-                int result = CameraBuildPerspClipPlanesHook.OriginalFunction(RwCamera);
-
-                (*RwCamera).viewWindow.x = (*RwCamera).viewWindow.x / AspectRatioScale;
-                return result;
-            }
-            catch
-            {
-                return CameraBuildPerspClipPlanesHook.OriginalFunction(RwCamera);
-            }
-        }
-
-        /// <summary>
-        /// Calls the original function and then changes the recipient view window's X coordinate set.
-        /// </summary>
-        /// <param name="cameraPointer"></param>
-        /// <param name="view"></param>
-        /// <returns></returns>
-        [HandleProcessCorruptedStateExceptions]
-        private static void RwCameraSetViewWindowImpl(RWCamera* cameraPointer, Aspect.RWView* view)
-        {
-            if (!resizeHookSetup)
-                SetupResizeHook();
-
-            try
-            {
-                RwCameraSetViewWindowHook.OriginalFunction(cameraPointer, view);
-
-                float CurrentAspectRatio = GetCurrentAspectRatio();
-                float AspectRatioScale = CurrentAspectRatio / OriginalAspectRatio;
-                (*cameraPointer).recipViewWindow.x = (*cameraPointer).recipViewWindow.x / AspectRatioScale;
-            }
-            catch
-            {
-                RwCameraSetViewWindowHook.OriginalFunction(cameraPointer, view);
+                *_resolutionX = resolution.RightBorder;
+                *_resolutionY = resolution.BottomBorder;
             }
         }
 
@@ -295,17 +350,7 @@ namespace Reloaded_Mod_Template
                 WindowEventHooks.WINEVENT_OUTOFCONTEXT              // Flags: Allow cross-process event hooking
             );
 
-            resizeHookSetup = true;
-        }
-
-        /// <summary>
-        /// Returns the current aspect ratio obtained by calculating the width and height of the window.
-        /// </summary>
-        /// <returns>The aspect ratio of the current window.</returns>
-        private static float GetCurrentAspectRatio()
-        {
-            var resolution = WindowProperties.GetClientAreaSize(GameProcess.Process.MainWindowHandle);
-            return (resolution.RightBorder / (float)resolution.BottomBorder);
+            _resizeHookSetup = true;
         }
     }
 }

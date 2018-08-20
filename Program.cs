@@ -248,7 +248,7 @@ namespace Reloaded_Mod_Template
                 float aspectRatioScale = currentAspectRatio / OriginalAspectRatio;
 
                 // Stretch X or Y depending on aspect ratio.
-                if (currentAspectRatio > _graphicsSettings.AspectRatioLimit)
+                if (currentAspectRatio >= _graphicsSettings.AspectRatioLimit)
                     (*rwCamera).viewWindow.x = (*rwCamera).viewWindow.x * aspectRatioScale;
                 else
                     (*rwCamera).viewWindow.y = (*rwCamera).viewWindow.y * (1F / aspectRatioScale);
@@ -257,7 +257,7 @@ namespace Reloaded_Mod_Template
                 int result = _cameraBuildPerspClipPlanesHook.OriginalFunction(rwCamera);
 
                 // Unstretch X or Y depending on aspect ratio.
-                if (currentAspectRatio > _graphicsSettings.AspectRatioLimit)
+                if (currentAspectRatio >= _graphicsSettings.AspectRatioLimit)
                     (*rwCamera).viewWindow.x = (*rwCamera).viewWindow.x / aspectRatioScale;
                 else
                     (*rwCamera).viewWindow.y = (*rwCamera).viewWindow.y / (1F / aspectRatioScale);
@@ -291,7 +291,7 @@ namespace Reloaded_Mod_Template
                 float aspectRatioScale = currentAspectRatio / OriginalAspectRatio;
 
                 // Stretch X or Y depending on aspect ratio.
-                if (currentAspectRatio > _graphicsSettings.AspectRatioLimit)
+                if (currentAspectRatio >= _graphicsSettings.AspectRatioLimit)
                     (*cameraPointer).recipViewWindow.x = (*cameraPointer).recipViewWindow.x / aspectRatioScale;
                 else
                     (*cameraPointer).recipViewWindow.y = (*cameraPointer).recipViewWindow.y / (1F / aspectRatioScale);

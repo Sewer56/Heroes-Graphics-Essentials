@@ -24,12 +24,20 @@ namespace Reloaded_Mod_Template
     Fullscreen:         Sets the game to fullscreen mode, not complicated.
     Borderless:         Sets the game window to borderless if the game is not in fullscreen mode.
     Resizable:          Makes the game window resizable if the game is not in fullscreen mode.
+    Disable2PFrameSkip: Disables the frame skipping behaviour in 2 player mode, allowing you to play at 60 FPS.
     AspectRatioLimit:   If the game window is below this aspect ratio, the widescreen hack 
                         scales the window vertically instead of horizontally.
     StupidlyFastLoadTimes:
                         Reimplements a bug to the extreme that happens while running the game in fullscreen on
                         modern hardware.
                         https://twitter.com/sewer56lol/status/1031387436683866112
+    EnableAspectHack:
+                        A hack to stop the game crashing on the stage titlecards with extreme aspect ratios.
+    AlternateAspectScaling:
+                        An alternative way of scaling the game's FOV.
+                        Setting this locks the Aspect Ratio of the in-game HUD to the set AspectRatioLimit.
+                        Normal behaviour with this flag off is a HUD shrink.
+
 */";
 
         /// <summary>
@@ -65,10 +73,20 @@ namespace Reloaded_Mod_Template
             public bool Resizable  = false;
 
             [JsonProperty(Required = Required.Default)]
+            public bool Disable2PFrameskip = true;
+
+            [JsonProperty(Required = Required.Default)]
             public float AspectRatioLimit = 4/3F;
 
             [JsonProperty(Required = Required.Default)]
             public bool StupidlyFastLoadTimes = true;
+
+            [JsonProperty(Required = Required.Default)]
+            public bool EnableAspectHack = true;
+
+            [JsonProperty(Required = Required.Default)]
+            public bool AlternateAspectScaling = false;
+
 
             /// <summary>
             /// Parses an existing config, if exists. If not exists, assumes 720p and
@@ -136,5 +154,9 @@ namespace Reloaded_Mod_Template
         [UnmanagedFunctionPointer(CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         [ReloadedFunction(Register.eax, Register.eax, StackCleanup.Callee)]
         public delegate int ReadConfigfromINI(char* somePath); // sub_629CE0, reads the config from the ini file.
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [ReloadedFunction(Register.eax, Register.eax, StackCleanup.Callee)]
+        public delegate int SomeTitlecardCreate(int* a1, int a2); // A function for which we need to temporarily revert the resolution for, else it crashes.
     }
 }

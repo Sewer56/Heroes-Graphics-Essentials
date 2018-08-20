@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Drawing;
 using System.IO;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
@@ -136,6 +137,7 @@ namespace Reloaded_Mod_Template
         private static FunctionHook<Aspect.RwCameraSetViewWindow> _rwCameraSetViewWindowHook;
         private static FunctionHook<Aspect.CameraBuildPerspClipPlanes> _cameraBuildPerspClipPlanesHook;
         private static FunctionHook<Graphics.ReadConfigfromINI> _readConfigFromIniHook;
+        private static FunctionHook<Graphics.SomeTitlecardCreate> _someTitlecardCreateHook;
 
         /*
             Constants
@@ -183,6 +185,12 @@ namespace Reloaded_Mod_Template
             _rwCameraSetViewWindowHook = FunctionHook<Aspect.RwCameraSetViewWindow>.Create(0x0064AC80, RwCameraSetViewWindowImpl).Activate();
             _cameraBuildPerspClipPlanesHook = FunctionHook<Aspect.CameraBuildPerspClipPlanes>.Create(0x0064AF80, CameraBuildPerspClipPlanesImpl).Activate();
             _readConfigFromIniHook = FunctionHook<Graphics.ReadConfigfromINI>.Create(0x00629CE0, ReadConfigFromIniImpl).Activate();
+
+            if (_graphicsSettings.EnableAspectHack)
+                _someTitlecardCreateHook = FunctionHook<Graphics.SomeTitlecardCreate>.Create(0x0061D3B0, SomeTitlecardCreateHook).Activate();
+
+            if (_graphicsSettings.Disable2PFrameskip)
+                GameProcess.WriteMemory((IntPtr)0x402D07, new byte[] { 0x90 });
         }
 
         /// <summary>
@@ -246,13 +254,24 @@ namespace Reloaded_Mod_Template
                 // The current aspect ratio.
                 float currentAspectRatio = GetCurrentAspectRatio();
                 float aspectRatioScale = currentAspectRatio / OriginalAspectRatio;
+                float aspectLimitMultipler = OriginalAspectRatio / _graphicsSettings.AspectRatioLimit;
 
                 // Stretch X or Y depending on aspect ratio.
                 if (currentAspectRatio >= _graphicsSettings.AspectRatioLimit)
                     (*rwCamera).viewWindow.x = (*rwCamera).viewWindow.x * aspectRatioScale;
                 else
-                    (*rwCamera).viewWindow.y = (*rwCamera).viewWindow.y * (1F / aspectRatioScale);
-
+                {
+                    if (_graphicsSettings.AlternateAspectScaling)
+                    {
+                        (*rwCamera).viewWindow.x = (*rwCamera).viewWindow.x / (aspectLimitMultipler);
+                        (*rwCamera).viewWindow.y = (*rwCamera).viewWindow.y * ((1F / aspectLimitMultipler) / aspectRatioScale);
+                    }
+                    else
+                    {
+                        (*rwCamera).viewWindow.y = (*rwCamera).viewWindow.y * (1F / aspectRatioScale);
+                    }
+                }
+                    
                 // Call original
                 int result = _cameraBuildPerspClipPlanesHook.OriginalFunction(rwCamera);
 
@@ -260,7 +279,18 @@ namespace Reloaded_Mod_Template
                 if (currentAspectRatio >= _graphicsSettings.AspectRatioLimit)
                     (*rwCamera).viewWindow.x = (*rwCamera).viewWindow.x / aspectRatioScale;
                 else
-                    (*rwCamera).viewWindow.y = (*rwCamera).viewWindow.y / (1F / aspectRatioScale);
+                {
+                    if (_graphicsSettings.AlternateAspectScaling)
+                    {
+                        (*rwCamera).viewWindow.x = (*rwCamera).viewWindow.x * (aspectLimitMultipler);
+                        (*rwCamera).viewWindow.y = (*rwCamera).viewWindow.y / ((1F / aspectLimitMultipler) / aspectRatioScale);
+                    }
+                    else
+                    {
+                        (*rwCamera).viewWindow.y = (*rwCamera).viewWindow.y / (1F / aspectRatioScale);
+                    }
+                }
+                    
 
                 return result;
             }
@@ -289,12 +319,29 @@ namespace Reloaded_Mod_Template
                 // Get aspect.
                 float currentAspectRatio = GetCurrentAspectRatio();
                 float aspectRatioScale = currentAspectRatio / OriginalAspectRatio;
+                float aspectLimitMultipler = OriginalAspectRatio / _graphicsSettings.AspectRatioLimit; // Forced aspect ratio.
 
-                // Stretch X or Y depending on aspect ratio.
+                // Unstretch X or Y depending on aspect ratio.
                 if (currentAspectRatio >= _graphicsSettings.AspectRatioLimit)
+                {
                     (*cameraPointer).recipViewWindow.x = (*cameraPointer).recipViewWindow.x / aspectRatioScale;
+                }   
                 else
-                    (*cameraPointer).recipViewWindow.y = (*cameraPointer).recipViewWindow.y / (1F / aspectRatioScale);
+                {
+                    if (_graphicsSettings.AlternateAspectScaling)
+                    {
+                        // Squish X as if the window was of the aspect ratio of aspectLimitMultipler regardless of whether it is or not.
+                        // Then Squish Y accordingly.
+                        (*cameraPointer).recipViewWindow.x = (*cameraPointer).recipViewWindow.x * (aspectLimitMultipler);
+                        (*cameraPointer).recipViewWindow.y = (*cameraPointer).recipViewWindow.y / ((1F / aspectLimitMultipler) / aspectRatioScale);
+                    }
+                    else
+                    {
+                        // Squish more contents in from the top.
+                        (*cameraPointer).recipViewWindow.y = (*cameraPointer).recipViewWindow.y / (1F / aspectRatioScale);
+                    }
+                }
+                    
             }
             catch
             {
@@ -351,6 +398,32 @@ namespace Reloaded_Mod_Template
             );
 
             _resizeHookSetup = true;
+        }
+
+        /// <summary>
+        /// A crashfix for running Heroes at extreme resolutions, patches the resolution the rasters are created at.
+        /// </summary>
+        /// <returns></returns>
+        private static int SomeTitlecardCreateHook(int* a1, int a2)
+        {
+            int resolutionXBackup = *_resolutionX;
+            int resolutionYBackup = *_resolutionY;
+            int greaterResolution = resolutionXBackup > resolutionYBackup ? resolutionXBackup : resolutionYBackup;
+
+            // Get the window size.
+            Structures.WinapiRectangle windowLocation = WindowProperties.GetWindowRectangle(GameProcess.Process.MainWindowHandle);
+
+            // Set the window size.
+            WindowFunctions.MoveWindow(GameProcess.Process.MainWindowHandle, windowLocation.LeftBorder,
+                windowLocation.TopBorder, greaterResolution, (int)(greaterResolution / OriginalAspectRatio), false);
+
+            int result = _someTitlecardCreateHook.OriginalFunction(a1, a2);
+
+            // Re-set the window size.
+            WindowFunctions.MoveWindow(GameProcess.Process.MainWindowHandle, windowLocation.LeftBorder,
+                windowLocation.TopBorder, resolutionXBackup, resolutionYBackup, false);
+
+            return result;
         }
     }
 }

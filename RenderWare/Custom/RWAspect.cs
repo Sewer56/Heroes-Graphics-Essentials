@@ -1,15 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Runtime.InteropServices;
 using Reloaded.Process.Functions.X86Functions;
-using Reloaded_Mod_Template.RenderWare;
 
-namespace Reloaded_Mod_Template
+namespace Reloaded_Mod_Template.RenderWare.Custom
 {
-    public unsafe class Aspect
+    public unsafe class RWAspect
     {
         /// <summary>
         /// Describes a RenderWare Camera View structure.

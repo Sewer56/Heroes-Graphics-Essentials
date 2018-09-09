@@ -12,10 +12,14 @@ using Reloaded.Assembler;
 using Reloaded.Native.Functions;
 using Reloaded.Native.WinAPI;
 using Reloaded.Process;
+using Reloaded.Process.Functions.X86Functions;
 using Reloaded.Process.Functions.X86Hooking;
 using Reloaded.Process.Memory;
 using Reloaded.Process.Native;
+using Reloaded_Mod_Template.DirectX;
 using Reloaded_Mod_Template.RenderWare;
+using Reloaded_Mod_Template.RenderWare.Custom;
+using static Reloaded.Process.Functions.X86Functions.ReloadedFunctionAttribute;
 
 namespace Reloaded_Mod_Template
 {
@@ -134,10 +138,10 @@ namespace Reloaded_Mod_Template
         /*
             Hooks
         */
-        private static FunctionHook<Aspect.RwCameraSetViewWindow> _rwCameraSetViewWindowHook;
-        private static FunctionHook<Aspect.CameraBuildPerspClipPlanes> _cameraBuildPerspClipPlanesHook;
-        private static FunctionHook<Graphics.ReadConfigfromINI> _readConfigFromIniHook;
-        private static FunctionHook<Graphics.SomeTitlecardCreate> _someTitlecardCreateHook;
+        private static FunctionHook<RWAspect.RwCameraSetViewWindow> _rwCameraSetViewWindowHook;
+        private static FunctionHook<RWAspect.CameraBuildPerspClipPlanes> _cameraBuildPerspClipPlanesHook;
+        private static FunctionHook<ReadConfigfromINI> _readConfigFromIniHook;
+        private static FunctionHook<TObjCamera_Init> _someTitlecardCreateHook;
 
         /*
             Constants
@@ -155,10 +159,26 @@ namespace Reloaded_Mod_Template
         private static readonly int* _windowStyleB = (int*) 0x00446DBE;
 
         /*
+            Default Settings 
+        */
+
+        private static readonly byte* _G_Language = (byte*)0x008CAEE1;
+        private static readonly byte* _G_SfxVolume = (byte*)0x008CAEE2;
+        private static readonly byte* _G_BgmVolume = (byte*)0x008CAEE3;
+
+        private static readonly bool* _G_3DSound = (bool*)0x008CAEE4;
+        private static readonly bool* _G_SfxOn = (bool*)0x008CAEE8;
+        private static readonly bool* _G_BgmOn = (bool*)0x008CAEEC;
+        private static readonly bool* _G_CheapShadow = (bool*)0x008CAEF0;
+        private static readonly int*  _G_MouseControl = (int*)0x008CAEF4;
+        private static readonly bool* _G_CharmyShutup = (bool*)0x008CAEF8;
+
+        /*
             Other 
         */
-        private static Graphics.GraphicsSettings _graphicsSettings;
+        private static Settings.GraphicsSettings _graphicsSettings;
         private static bool  _resizeHookSetup = false;
+        private static Device _dx9Device;
 
         /// <summary>
         /// Your own user code starts here.
@@ -172,25 +192,30 @@ namespace Reloaded_Mod_Template
             #endif
 
             // Get graphics settings
-            _graphicsSettings = Graphics.GraphicsSettings.ParseConfig(ModDirectory);
-            Graphics.GraphicsSettings.WriteConfig(_graphicsSettings, ModDirectory);     // Will add comments if they are not present.
+            _graphicsSettings = Settings.GraphicsSettings.ParseConfig(ModDirectory);
+            Settings.GraphicsSettings.WriteConfig(_graphicsSettings, ModDirectory);     // Will add comments if they are not present.
 
+            // Hooks
+            _rwCameraSetViewWindowHook = FunctionHook<RWAspect.RwCameraSetViewWindow>.Create(0x0064AC80, RwCameraSetViewWindowImpl).Activate();
+            _cameraBuildPerspClipPlanesHook = FunctionHook<RWAspect.CameraBuildPerspClipPlanes>.Create(0x0064AF80, CameraBuildPerspClipPlanesImpl).Activate();
+            _readConfigFromIniHook = FunctionHook<ReadConfigfromINI>.Create(0x00629CE0, ReadConfigFromIniImpl).Activate();
+
+            // Patches
             PatchHardcodedResolutions();
             PatchWindowStyle();
 
-            // Let's ignore the titlecard.
             if (_graphicsSettings.StupidlyFastLoadTimes)
                 GameProcess.WriteMemory((IntPtr)0x0078A578, (double)9999999999F);
 
-            _rwCameraSetViewWindowHook = FunctionHook<Aspect.RwCameraSetViewWindow>.Create(0x0064AC80, RwCameraSetViewWindowImpl).Activate();
-            _cameraBuildPerspClipPlanesHook = FunctionHook<Aspect.CameraBuildPerspClipPlanes>.Create(0x0064AF80, CameraBuildPerspClipPlanesImpl).Activate();
-            _readConfigFromIniHook = FunctionHook<Graphics.ReadConfigfromINI>.Create(0x00629CE0, ReadConfigFromIniImpl).Activate();
-
             if (_graphicsSettings.EnableAspectHack)
-                _someTitlecardCreateHook = FunctionHook<Graphics.SomeTitlecardCreate>.Create(0x0061D3B0, SomeTitlecardCreateHook).Activate();
+                _someTitlecardCreateHook = FunctionHook<TObjCamera_Init>.Create(0x0061D3B0, TObjCameraInitHook).Activate();
 
             if (_graphicsSettings.Disable2PFrameskip)
                 GameProcess.WriteMemory((IntPtr)0x402D07, new byte[] { 0x90 });
+
+            if (_graphicsSettings.D3D9Settings.Enable)
+                _dx9Device = new Device(_graphicsSettings.D3D9Settings, ModDirectory);
+                
         }
 
         /// <summary>
@@ -204,6 +229,17 @@ namespace Reloaded_Mod_Template
             // Override our fullscreen preference.
             *_configFileFullscreen = Convert.ToInt32(_graphicsSettings.Fullscreen);
 
+            // Set default settings.
+            *_G_3DSound = _graphicsSettings.DefaultSettings.ThreeDimensionalSound;
+            *_G_BgmOn = _graphicsSettings.DefaultSettings.BGMOn;
+            *_G_BgmVolume = (byte)_graphicsSettings.DefaultSettings.BGMVolume;
+            *_G_CharmyShutup = _graphicsSettings.DefaultSettings.CharmyShutup;
+            *_G_CheapShadow = !_graphicsSettings.DefaultSettings.SoftShadows;
+            *_G_Language = (byte) _graphicsSettings.DefaultSettings.Language;
+            *_G_MouseControl = _graphicsSettings.DefaultSettings.MouseControl;
+            *_G_SfxOn = _graphicsSettings.DefaultSettings.SFXOn;
+            *_G_SfxVolume = (byte) _graphicsSettings.DefaultSettings.SFXVolume;
+
             return result;
         }
 
@@ -213,7 +249,7 @@ namespace Reloaded_Mod_Template
         private static void PatchHardcodedResolutions()
         {
             // Patch the game's resolutions (.
-            var resolutionArrayPointer = (Graphics.NativeGraphicsSetting*)0x7C9290;
+            var resolutionArrayPointer = (Settings.NativeGraphicsSetting*)0x7C9290;
             for (int x = 0; x < StockResolutionPresetCount; x++)
             {
                 resolutionArrayPointer[x].Width = _graphicsSettings.Width;
@@ -223,6 +259,7 @@ namespace Reloaded_Mod_Template
 
         /// <summary>
         /// Patches the game's window style to be created.
+        /// This gives us borderless/resizable, etc.
         /// </summary>
         private static void PatchWindowStyle()
         {
@@ -230,16 +267,17 @@ namespace Reloaded_Mod_Template
             uint stockWindowStyle = 0x00C80000; // Sonic Heroes' default, set here in case someone runs a modified .exe;
 
             if (_graphicsSettings.Borderless)
-                stockWindowStyle = Graphics.GraphicsSettings.SetBorderless(stockWindowStyle);
+                stockWindowStyle = Settings.GraphicsSettings.SetBorderless(stockWindowStyle);
 
             if (_graphicsSettings.Resizable)
-                stockWindowStyle = Graphics.GraphicsSettings.SetResizable(stockWindowStyle);
+                stockWindowStyle = Settings.GraphicsSettings.SetResizable(stockWindowStyle);
 
             // Set window border style.
             GameProcess.WriteMemory((IntPtr)_windowStyleA, stockWindowStyle); // Not using pointer as I'd need to change protections using VirtualProtect.
             GameProcess.WriteMemory((IntPtr)_windowStyleB, stockWindowStyle); // Not using pointer as I'd need to change protections using VirtualProtect.
         }
 
+        #region CameraBuildPerspClipPlanes and RwCameraSetViewWindow Hooks. The latter is the widescreen hack itself, the former just ensures objects don't clip on sides.
         /// <summary>
         /// Calls the original function with modified view window coordinates for the RenderWare
         /// Internal Clip Plane calculation function and then following restores the original view window.
@@ -307,7 +345,7 @@ namespace Reloaded_Mod_Template
         /// <param name="view"></param>
         /// <returns></returns>
         [HandleProcessCorruptedStateExceptions]
-        private static void RwCameraSetViewWindowImpl(RWCamera* cameraPointer, Aspect.RWView* view)
+        private static void RwCameraSetViewWindowImpl(RWCamera* cameraPointer, RWAspect.RWView* view)
         {
             if (!_resizeHookSetup)
                 SetupResizeHook();
@@ -348,17 +386,37 @@ namespace Reloaded_Mod_Template
                 _rwCameraSetViewWindowHook.OriginalFunction(cameraPointer, view);
             }
         }
+        #endregion 
 
+        #region TObjCamera::Init Hook - Extrene Aspect Ratio Crash Hack
         /// <summary>
-        /// Returns the current aspect ratio obtained by calculating the width and height of the window.
+        /// A crashfix for running Heroes at extreme resolutions, patches the resolution the rasters are created at.
         /// </summary>
-        /// <returns>The aspect ratio of the current window.</returns>
-        private static float GetCurrentAspectRatio()
+        /// <returns></returns>
+        private static int TObjCameraInitHook(int* thisPointer, int cameraLimit)
         {
-            var resolution = WindowProperties.GetClientAreaSize(GameProcess.Process.MainWindowHandle);
-            return (resolution.RightBorder / (float)resolution.BottomBorder);
-        }
+            int resolutionXBackup = *_resolutionX;
+            int resolutionYBackup = *_resolutionY;
+            int greaterResolution = resolutionXBackup > resolutionYBackup ? resolutionXBackup : resolutionYBackup;
 
+            // Get the window size.
+            Structures.WinapiRectangle windowLocation = WindowProperties.GetWindowRectangle(GameProcess.Process.MainWindowHandle);
+
+            // Set the window size.
+            WindowFunctions.MoveWindow(GameProcess.Process.MainWindowHandle, windowLocation.LeftBorder,
+                windowLocation.TopBorder, greaterResolution, (int)(greaterResolution / OriginalAspectRatio), false);
+
+            int result = _someTitlecardCreateHook.OriginalFunction(thisPointer, cameraLimit);
+
+            // Re-set the window size.
+            WindowFunctions.MoveWindow(GameProcess.Process.MainWindowHandle, windowLocation.LeftBorder,
+                windowLocation.TopBorder, resolutionXBackup, resolutionYBackup, false);
+
+            return result;
+        }
+        #endregion TObjCamera::Init Hook - Extrene Aspect Ratio Crash Hack
+
+        #region Window Resize Hook - Write internal resolution value to patch changes between menus.
         /// <summary>
         /// Executed when the user resizes the window (in the case of a window style hack).
         /// </summary>
@@ -399,31 +457,28 @@ namespace Reloaded_Mod_Template
 
             _resizeHookSetup = true;
         }
+        #endregion
 
         /// <summary>
-        /// A crashfix for running Heroes at extreme resolutions, patches the resolution the rasters are created at.
+        /// Returns the current aspect ratio obtained by calculating the width and height of the window.
         /// </summary>
-        /// <returns></returns>
-        private static int SomeTitlecardCreateHook(int* a1, int a2)
+        /// <returns>The aspect ratio of the current window.</returns>
+        private static float GetCurrentAspectRatio()
         {
-            int resolutionXBackup = *_resolutionX;
-            int resolutionYBackup = *_resolutionY;
-            int greaterResolution = resolutionXBackup > resolutionYBackup ? resolutionXBackup : resolutionYBackup;
-
-            // Get the window size.
-            Structures.WinapiRectangle windowLocation = WindowProperties.GetWindowRectangle(GameProcess.Process.MainWindowHandle);
-
-            // Set the window size.
-            WindowFunctions.MoveWindow(GameProcess.Process.MainWindowHandle, windowLocation.LeftBorder,
-                windowLocation.TopBorder, greaterResolution, (int)(greaterResolution / OriginalAspectRatio), false);
-
-            int result = _someTitlecardCreateHook.OriginalFunction(a1, a2);
-
-            // Re-set the window size.
-            WindowFunctions.MoveWindow(GameProcess.Process.MainWindowHandle, windowLocation.LeftBorder,
-                windowLocation.TopBorder, resolutionXBackup, resolutionYBackup, false);
-
-            return result;
+            var resolution = WindowProperties.GetClientAreaSize(GameProcess.Process.MainWindowHandle);
+            return (resolution.RightBorder / (float)resolution.BottomBorder);
         }
+
+        [ReloadedFunction(new Register[0], Register.eax, StackCleanup.Callee, 0x20)]
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        public delegate int ConfigureGame(); // sub_4469F0, sets the initial game resolution, we will (no longer) override it.
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [ReloadedFunction(Register.eax, Register.eax, StackCleanup.Callee)]
+        public delegate int ReadConfigfromINI(char* somePath); // sub_629CE0, reads the config from the ini file.
+
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [ReloadedFunction(Register.eax, Register.eax, StackCleanup.Callee)]
+        public delegate int TObjCamera_Init(int* thisPointer, int camLimit); // A function for which we need to temporarily revert the resolution for, else it crashes.
     }
 }

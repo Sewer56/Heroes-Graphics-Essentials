@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using LiteNetLib;
 using Reloaded;
 using Reloaded.Paths;
@@ -20,6 +21,7 @@ namespace Reloaded_Mod_Template.ReloadedTemplate
     {
         public void Run(IntPtr portLocation)
         {
+            AppDomain.CurrentDomain.UnhandledException += Init._childDomain_UnhandledException; // Pass exceptions to default AppDomain on crashes.
             Init.Initialize(portLocation);
         }
     }
@@ -40,7 +42,8 @@ namespace Reloaded_Mod_Template.ReloadedTemplate
         public static void Main(IntPtr portAddress)
         {
             // Retrieve Assemblies from the "Libraries" folder.
-            AppDomain.CurrentDomain.AssemblyResolve += LocalAssemblyFinder.ResolveAppDomainAssembly;
+            AppDomain currentDomain = AppDomain.CurrentDomain;
+            currentDomain.AssemblyResolve += LocalAssemblyFinder.ResolveAppDomainAssembly;            
 
             // Try restarting in another AppDomain if possible.
             try
@@ -50,13 +53,16 @@ namespace Reloaded_Mod_Template.ReloadedTemplate
                 permissionSet.AddPermission(new SecurityPermission(SecurityPermissionFlag.AllFlags));
 
                 // The ApplicationBase of the new domain should be the directory containing the current DLL.
-                AppDomainSetup appDomainSetup = new AppDomainSetup() { ApplicationBase = Path.GetDirectoryName(typeof(InitProxy).Assembly.Location) };
-                _childDomain = AppDomain.CreateDomain("Reloaded", null, appDomainSetup, permissionSet);
+                AppDomainSetup appDomainSetup = new AppDomainSetup()
+                {
+                    ApplicationBase = Path.GetDirectoryName(typeof(InitProxy).Assembly.Location),
+                    PrivateBinPath = Path.GetDirectoryName(typeof(InitProxy).Assembly.Location)
+                };
+                _childDomain = AppDomain.CreateDomain("ReloadedXDD", null, appDomainSetup, permissionSet);
 
                 // Now make the new AppDomain load our code using our proxy.
                 Type proxyType = typeof(InitProxy);
-                var initProxy = (InitProxy)_childDomain.CreateInstanceFrom(proxyType.Assembly.Location, proxyType.FullName).Unwrap(); // Our AssemblyResolve will pick the missing DLL out.
-                _childDomain.UnhandledException += _childDomain_UnhandledException; // Pass exceptions to default AppDomain on crashes.
+                dynamic initProxy = _childDomain.CreateInstanceFrom(proxyType.Assembly.Location, proxyType.FullName).Unwrap(); // Our AssemblyResolve will pick the missing DLL out.
                 initProxy.Run(portAddress);
             }
             catch (Exception ex)
@@ -69,7 +75,7 @@ namespace Reloaded_Mod_Template.ReloadedTemplate
         /// Throws exceptions in the default AppDomain when/if the application crashes.
         /// VS may otherwise fail to get the stack trace.
         /// </summary>
-        private static void _childDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
+        public static void _childDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
         {
             throw (Exception)e.ExceptionObject;
         }

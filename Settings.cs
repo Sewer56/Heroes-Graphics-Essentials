@@ -14,7 +14,7 @@ using static Reloaded.Process.Functions.X86Functions.ReloadedFunctionAttribute;
 
 namespace Reloaded_Mod_Template
 {
-    public unsafe class Graphics
+    public unsafe class Settings
     {
         public const string Descriptions =
 @"
@@ -27,18 +27,72 @@ namespace Reloaded_Mod_Template
     Disable2PFrameSkip: Disables the frame skipping behaviour in 2 player mode, allowing you to play at 60 FPS.
     AspectRatioLimit:   If the game window is below this aspect ratio, the widescreen hack 
                         scales the window vertically instead of horizontally.
+
     StupidlyFastLoadTimes:
                         Reimplements a bug to the extreme that happens while running the game in fullscreen on
                         modern hardware.
                         https://twitter.com/sewer56lol/status/1031387436683866112
+
     EnableAspectHack:
                         A hack to stop the game crashing on the stage titlecards with extreme aspect ratios.
+
     AlternateAspectScaling:
                         An alternative way of scaling the game's FOV.
                         Setting this locks the Aspect Ratio of the in-game HUD to the set AspectRatioLimit.
                         Normal behaviour with this flag off is a HUD shrink.
 
+    DirectX 9 Settings (D3D9Settings):
+        Enable:             Copies Crosire's D3D8To9 to the game directory if it does not exist and renders the game
+                            through DirectX 9.
+
+        EnableMSAA:         Enables Multi Sampling Anti Aliasing to reduce the amount of jagged edges shown on character
+                            models.
+        
+        EnableAF:           Enables Anisotropic Filtering.
+
+        MSAALevel:          Specifies the number of samples for MSAA; this value can be anywhere between 1 and 16.
+                            Powers of two are recommended.
+
+        AFLevel:            Specifies the level of anisotropic filtering used between 1 and 16.
+
+        VSync:              Enabling this kills any possible tearing at the expense of possible input latency.
+
+        HardwareVertexProcessing: 
+                            If set to true; the GPU processes the vertex shaders increasing performance.
+                            Otherwise the CPU processes vertex shaders.
+
+    Default Settings (Basically Heroes Launcher Settings):
+        Language:           Spoiler: This setting is useless; game stores language per-save.
+            0 = Japanese    (Default Launcher Ignores this Language) 
+            1 = English
+            2 = French
+            3 = Spanish
+            4 = German
+            5 = Italian
+            6 = Korean      (Default Launcher Ignores this Language)
+
+        SFXVolume: Volume of sound effects from 0 to 100.
+        BGMVolume: Volume of music from 0 to 100.    
+        ThreeDimensionalSound: Why would you want to disable this?
+        SFXOn: Self explanatory.
+        BGMOn: Self explanatory.
+        SoftShadows: If this is false, all shadows are circles.
+        MouseControl: Nobody likes playing with the mouse. (I think)
+        CharmyShutup: Disables character action sounds such as Knuckles' famous 'Shoot! Rock! Yeah!'.
 */";
+
+        public class DefaultSettings
+        {
+            public int Language  = 1;
+            public int SFXVolume = 100;
+            public int BGMVolume = 100;
+            public bool ThreeDimensionalSound = true;
+            public bool SFXOn = true;
+            public bool BGMOn = true;
+            public bool SoftShadows = true;
+            public int  MouseControl = -1;
+            public bool CharmyShutup = false;
+        }
 
         /// <summary>
         /// Replicates resolution struct as stored in the Sonic Heroes executable.
@@ -50,6 +104,55 @@ namespace Reloaded_Mod_Template
             public int BitsPerPixel;
             public int Unknown0;
             public int Unknown1;
+        }
+
+        /// <summary>
+        /// Stores various DirectX 9 related settings.
+        /// </summary>
+        public class D3D9Settings
+        {
+            /// <summary>
+            /// Enables Direct3D9 manipulation.
+            /// </summary>
+            [JsonProperty(Required = Required.Default)]
+            public bool Enable = true;
+
+            /// <summary>
+            /// Enables Multi-Sampling Anti Aliasing
+            /// </summary>
+            [JsonProperty(Required = Required.Default)]
+            public bool EnableMSAA = true;
+
+            /// <summary>
+            /// Enables Anisotropic Filtering
+            /// </summary>
+            [JsonProperty(Required = Required.Default)]
+            public bool EnableAF = true;
+
+            /// <summary>
+            /// Sets the amount of MSAA Samples Taken.
+            /// </summary>
+            [JsonProperty(Required = Required.Default)]
+            public int MSAALevel = 4;
+
+            /// <summary>
+            /// Sets the amount of MSAA Samples Taken.
+            /// </summary>
+            [JsonProperty(Required = Required.Default)]
+            public int AFLevel = 16;
+
+            /// <summary>
+            /// Enabling kills tearing at the expense of possible slight input latency.
+            /// </summary>
+            [JsonProperty(Required = Required.Default)]
+            public bool VSync = true;
+
+            /// <summary>
+            /// If set to true; the GPU processes the vertex shaders increasing performance.
+            /// Otherwise the CPU processes vertex shaders.
+            /// </summary>
+            [JsonProperty(Required = Required.Default)]
+            public bool HardwareVertexProcessing = true;
         }
 
         /// <summary>
@@ -87,6 +190,11 @@ namespace Reloaded_Mod_Template
             [JsonProperty(Required = Required.Default)]
             public bool AlternateAspectScaling = false;
 
+            [JsonProperty(Required = Required.Default)]
+            public D3D9Settings D3D9Settings = new D3D9Settings();
+
+            [JsonProperty(Required = Required.Default)]
+            public DefaultSettings DefaultSettings = new DefaultSettings();
 
             /// <summary>
             /// Parses an existing config, if exists. If not exists, assumes 720p and
@@ -145,18 +253,5 @@ namespace Reloaded_Mod_Template
                 return currentWindowStyle;
             }
         }
-
-        [ReloadedFunction(new Register[0], Register.eax, StackCleanup.Callee, 0x20)]
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        public delegate int ConfigureGame(); // sub_4469F0, sets the initial game resolution, we will (no longer) override it.
-
-
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        [ReloadedFunction(Register.eax, Register.eax, StackCleanup.Callee)]
-        public delegate int ReadConfigfromINI(char* somePath); // sub_629CE0, reads the config from the ini file.
-
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        [ReloadedFunction(Register.eax, Register.eax, StackCleanup.Callee)]
-        public delegate int SomeTitlecardCreate(int* a1, int a2); // A function for which we need to temporarily revert the resolution for, else it crashes.
     }
 }

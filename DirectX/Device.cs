@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
+using Reloaded;
 using Reloaded.Process.Functions.X86Hooking;
 using static Reloaded.Process.Native.Native;
 
@@ -61,6 +62,9 @@ namespace Reloaded_Mod_Template.DirectX
         /* Hook DirectX Device Creation */
         private IntPtr CreateDeviceImpl(IntPtr direct3DPointer, uint adapter, DeviceType deviceType, IntPtr hFocusWindow, CreateFlags behaviorFlags, ref PresentParameters pPresentationParameters, int** ppReturnedDeviceInterface)
         {
+            // Get D3D Interface (IDirect3D9)
+            Direct3D d3d = new Direct3D(direct3DPointer);
+
             // Enable Hardware Vertex Processing..
             if (_dx9Settings.HardwareVertexProcessing)
             {
@@ -70,13 +74,31 @@ namespace Reloaded_Mod_Template.DirectX
 
             // Get and Set max MSAA Quality
             if (_dx9Settings.EnableMSAA)
-            {
-                Direct3D d3d = new Direct3D(direct3DPointer);
-                d3d.CheckDeviceMultisampleType(0, DeviceType.Hardware, pPresentationParameters.BackBufferFormat,
-                    pPresentationParameters.Windowed, MultisampleType.EightSamples, out maxMSAAQuality);
+            {   
+                bool msaaAvailable = d3d.CheckDeviceMultisampleType(0, DeviceType.Hardware, pPresentationParameters.BackBufferFormat,
+                                        pPresentationParameters.Windowed, (MultisampleType)_dx9Settings.MSAALevel, out maxMSAAQuality);
+                
+                if (!msaaAvailable)
+                {
+                    Bindings.PrintError($"The user set MSAA Setting ({_dx9Settings.MSAALevel} Samples) is not supported on this hardware configuration.");
+                    Bindings.PrintError($"MSAA will be disabled.");
+                    _dx9Settings.EnableMSAA = false;
+                }
 
                 if (maxMSAAQuality > 0)
                     maxMSAAQuality -= 1;
+            }
+
+            // Check for AF Compatibility
+            if (_dx9Settings.EnableAF)
+            {
+                var capabilities = d3d.GetDeviceCaps(0, DeviceType.Hardware);
+                if (_dx9Settings.AFLevel > capabilities.MaxAnisotropy)
+                {
+                    Bindings.PrintError($"The user set Anisotropic Filtering Setting ({_dx9Settings.AFLevel} Samples) is not supported on this hardware configuration.");
+                    Bindings.PrintError($"AF will be disabled.");
+                    _dx9Settings.EnableAF = false;
+                }
             }
 
             // Set present parameters.
@@ -116,7 +138,9 @@ namespace Reloaded_Mod_Template.DirectX
         private void SetDeviceParameters(IntPtr device)
         {
             SharpDX.Direct3D9.Device localDevice = new SharpDX.Direct3D9.Device(device);
-            localDevice.SetRenderState(RenderState.MultisampleAntialias, true);
+
+            if (_dx9Settings.EnableMSAA)
+                localDevice.SetRenderState(RenderState.MultisampleAntialias, true);
             
             if (_dx9Settings.EnableAF)
             {

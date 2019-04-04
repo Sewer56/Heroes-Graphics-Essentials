@@ -56,7 +56,7 @@ namespace Reloaded_Mod_Template.DirectX
 
             // Hook D3D9 device creation.
             _createDeviceHook = _direct3DVirtualFunctionTable.TableEntries[(int)Interfaces.IDirect3D9.CreateDevice].CreateFunctionHook86<CreateDevice>(CreateDeviceImpl).Activate();
-            _resetDeviceHook = _direct3DDeviceVirtualFunctionTable.TableEntries[(int)Interfaces.IDirect3DDevice9.Reset].CreateFunctionHook86<Direct3D9DeviceResetDelegate>(ResetDeviceImpl).Activate();
+            //_resetDeviceHook = _direct3DDeviceVirtualFunctionTable.TableEntries[(int)Interfaces.IDirect3DDevice9.Reset].CreateFunctionHook86<Direct3D9DeviceResetDelegate>(ResetDeviceImpl).Activate();
         }
 
         /* Hook DirectX Device Creation */
